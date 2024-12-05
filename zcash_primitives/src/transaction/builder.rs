@@ -329,7 +329,7 @@ impl<'a, P: consensus::Parameters, R: RngCore + CryptoRng, O: UseOrchard> Builde
         sk: secp256k1::SecretKey,
         utxo: transparent::OutPoint,
         coin: TxOut,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error> {        
         self.transparent_builder
             .add_input(sk, utxo, coin)
             .map_err(Error::TransparentBuild)
@@ -373,6 +373,7 @@ impl<'a, P: consensus::Parameters, R: RngCore + CryptoRng, O: UseOrchard> Builde
             self.sapling_builder.value_balance(),
             Amount::from_i64(self.orchard_builder.value_balance())
                 .map_err(|_| Error::InvalidAmount)?,
+            // self.fee,
             #[cfg(feature = "zfuture")]
             self.tze_builder
                 .value_balance()
@@ -384,13 +385,18 @@ impl<'a, P: consensus::Parameters, R: RngCore + CryptoRng, O: UseOrchard> Builde
             .ok_or(Error::InvalidAmount)
     }
 
+    /// Set the custom fee
+    pub fn set_custom_fee(&mut self, custom_fee: Amount) {
+        self.fee = custom_fee;
+    }
+
     /// Builds a transaction from the configured spends and outputs.
     ///
     /// Upon success, returns a tuple containing the final transaction, and the
     /// [`SaplingMetadata`] generated during the build process.
     pub fn build(
         mut self,
-        prover: &impl TxProver,
+        prover: &impl TxProver
     ) -> Result<(Transaction, SaplingMetadata), Error> {
         let consensus_branch_id = BranchId::for_height(&self.params, self.target_height);
 
@@ -403,8 +409,11 @@ impl<'a, P: consensus::Parameters, R: RngCore + CryptoRng, O: UseOrchard> Builde
 
         // Valid change
         let change = (self.value_balance()? - self.fee).ok_or(Error::InvalidAmount)?;
+        println!("ValueBalance: {}", u64::from(self.value_balance()?));
+        println!("fee: {}", u64::from(self.fee));
 
         if change.is_negative() {
+            println!("ValueBalance: {}", u64::from(self.value_balance()?));
             return Err(Error::ChangeIsNegative(change));
         }
 
